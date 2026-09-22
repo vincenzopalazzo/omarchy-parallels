@@ -1,0 +1,14 @@
+# build workspace
+*.dmg
+*.img
+*.hds
+*.ext4
+*.zst
+esp-root/
+__pycache__/
+
+# never commit VM bundles or guest artifacts
+*.pvm/
+vmlinuz-linux
+initramfs-linux.img
+systemd-bootaa64.efi
