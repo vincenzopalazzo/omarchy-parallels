@@ -96,6 +96,35 @@ The script is idempotent-safe: it refuses to overwrite an existing VM name.
 - Parallels Standard edition: `prlctl start/stop/status/capture/snapshot-list/
   create` are Pro-gated; use `open <pvm>` to launch, and GUI for power ops.
 
+- **Eyes on the guest (no UART, no macOS permissions)**
+
+- `tools/get-screen.sh` — SSH in, `dd if=/dev/fb0`, convert BGRA→PNG locally:
+  pixel-exact screenshots of the VM window.
+- `lib/patch_initramfs.py` — splice a patched `/init` into the initramfs that
+  streams `/proc/kmsg` over TCP to the host and injects an SSH public key into
+  `/sysroot/root/.ssh` before `switch_root`. build.sh does this automatically
+  with `--ssh-key <pubkey>`.
+- Raw `debugfs -w` writes bypass journaling AND `sif mode` sets raw mode bits
+  (directories need `040xxx`, files `100xxx`) — prefer the initramfs injection.
+
+### SOP-07 — Resolution / display drivers (the real story)
+
+- Install tools from `prl-tools-lin-arm.iso` (in the Parallels app's
+  `Resources/Tools/`) — ARM64 tools are **pure userspace** (no kernel modules;
+  the `prl_tg`/`prl_fs` modprobe failures in `journalctl -u prltoolsd` are
+  cosmetic). `prltoolsd` + `prlcc` = dynamic-resolution channel + clipboard.
+- Parallels pushes the *window's logical size + DPI* (`[DYNRES]` lines) and
+  the guest confirms — but on **Wayland nothing applies it**: the pushed mode
+  never reaches the connector, so the guest stays at the EFI resolution and
+  the host upscales → "everything way too big".
+- `HostRetinaEnabled` + `OsResolutionInFullScreen` must be `1` in `config.pvs`
+  so fullscreen pushes native pixels.
+- **Omarchy 4 config is LUA** (`hyprland.lua` + `monitors.lua`) — edits to
+  `hyprland.conf` are silently ignored. Override:
+  `~/.config/hypr/monitors.lua` with
+  `hl.monitor({ output = "Virtual-1", mode = "2560x1600", position = "0x0", scale = 1 })`
+  then `hyprctl reload` (verified: `2560x1600@59.99` applied).
+
 ### The three traps that cost a day (all fixed in build.sh)
 
 1. **No-initramfs panic**: without initramfs the kernel mounts root immediately;

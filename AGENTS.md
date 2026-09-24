@@ -164,17 +164,40 @@ Re-apply the initramfs patch instead: `python3 lib/patch_initramfs.py
 <initramfs> <same> 10.211.55.2 4499 <pubkey>`, swap into ESP (SOP-05), reboot.
 
 ### SOP-07 — Fix resolution / window size
-Tools do dynamic resolution. If wrong:
+
+**How it actually works** (learned 2026-09-24): Parallels pushes the *window's
+logical size + DPI* to the guest over the tools channel (`[DYNRES] … Display
+[0]: W H DPI` in `parallels.log` + guest confirmation). On **X11** their video
+driver turns that into an `xrandr` modeset. On **Wayland/Hyprland nothing
+applies it** — the pushed mode never appears in the connector's mode list, so
+the guest stays at the EFI resolution (1160×768) and the host upscales it →
+"everything way too big".
+
+Also: `HostRetinaEnabled` / `OsResolutionInFullScreen` in `config.pvs` must be
+`1` (Parallels GUI: use Retina resolution / change resolution in fullscreen).
+With them on, fullscreen pushes native pixels (e.g. 2320×1536 on a Retina
+panel) — but again, Wayland still needs the static rule below.
+
+**Fix — Omarchy 4 uses a LUA config, not `hyprland.conf`** (a `hyprland.conf`
+edit is silently ignored; the log line is `[cfg] Regular config at
+…/hyprland.lua`):
+
 ```bash
-ssh -i <key> root@<ip> "
-  SIG=\$(ls /run/user/1000/hypr/ | head -1)
-  sudo -u <user> env XDG_RUNTIME_DIR=/run/user/1000 WAYLAND_DISPLAY=wayland-1 \
-    HYPRLAND_INSTANCE_SIGNATURE=\$SIG hyprctl reload"          # applies monitor rules
-grep -q monitor=Virtual-1 <(ssh … cat /home/<user>/.config/hypr/hyprland.conf) || \
-  ssh -i <key> root@<ip> "echo 'monitor=Virtual-1,preferred,1,1' >> /home/<user>/.config/hypr/hyprland.conf"
+cat > /home/<user>/.config/hypr/monitors.lua <<'EOF'
+local omarchy_gdk_scale = 2
+local omarchy_monitor_scale = 1
+hl.env("GDK_SCALE", tostring(omarchy_gdk_scale))
+hl.monitor({ output = "Virtual-1", mode = "2560x1600", position = "0x0", scale = 1 })
+EOF
+chown <user>:<user> /home/<user>/.config/hypr/monitors.lua
+# reload as the user (SIG = ls /run/user/1000/hypr/ | head -1):
+sudo -u <user> env XDG_RUNTIME_DIR=/run/user/1000 WAYLAND_DISPLAY=wayland-1 \
+  HYPRLAND_INSTANCE_SIGNATURE=$SIG hyprctl reload
 ```
-Scale must be `1` (Omarchy defaults to `2` — huge everything). Then resize the
-Parallels window / ⌃⌘F fullscreen; the mode follows via DYNRES.
+
+`2560x1600` is in the virtio-gpu mode list and is 16:10 Retina-class; scale 1.
+Result: sharp full-size desktop; fullscreen on a 2560×1440 panel ≈ 1:1 pixels.
+Available modes: 1160x768, 1920x1440, 2560x1600, 4096x2160.
 
 ### SOP-08 — (Re)install Parallels Tools
 ```bash
@@ -213,6 +236,8 @@ prlctl unregister "<name>" && rm -rf ~/Parallels/"<name>.pvm" ~/Downloads/omarch
 | SSH key injected via `debugfs -w` vanished | journal replay reverted raw writes | inject via initramfs (SOP-06), not fs surgery |
 | `debugfs sif mode` → `Type: bad type` | mode set without type bits | dirs `040xxx`, files `100xxx` |
 | Wayland env "not set" for `hyprctl`/`grim` | vars not in process env | derive: `SIG=$(ls /run/user/1000/hypr/ \| head -1)`, `WAYLAND_DISPLAY=wayland-1`, `XDG_RUNTIME_DIR=/run/user/1000` |
+| "screen way bigger" — guest stuck at 1160×768, upscaled | Parallels pushes logical size+DPI; **Wayland never applies it** (tools modeset path is X11-only) | set `HostRetinaEnabled`+`OsResolutionInFullScreen`=1 in `config.pvs`; pin a real mode via Omarchy's **Lua** config (`~/.config/hypr/monitors.lua` → `hl.monitor({output="Virtual-1", mode="2560x1600", position="0x0", scale=1})`) + `hyprctl reload`; see SOP-07 |
+| Omarchy config edits ignored | Omarchy 4 Hyprland config is **Lua** (`hyprland.lua`, `monitors.lua`) | edit the `.lua` files; `hyprland.conf` is dead text (Hyprland log: `[cfg] Regular config at …/hyprland.lua`) |
 
 ## 8. Hard-won rules (do NOT)
 
