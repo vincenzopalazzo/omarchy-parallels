@@ -48,7 +48,8 @@ Free CLI: `prlctl list|register|unregister`. Launch via `open <file>.pvm`.
 | `templates/VmInfo.pvi.tmpl` | Minimal per-VM info file |
 | `tools/get-screen.sh` | Screenshot the guest screen over SSH by reading `/dev/fb0` and converting BGRA→PNG locally (no macOS screen-recording permission needed) |
 | `tools/status.sh` | One-shot machine-readable state probe (host + guest), `key=value` lines |
-| `tools/post-install.sh` | Finisher: waits for SSH → installs Parallels Tools ARM64 → writes `monitors.lua` (2560×1600 @ scale 2) → reloads Hyprland → verifies. Usage: `./tools/post-install.sh [vm-name] [ssh-key] [guest-user]` |
+| `tools/post-install.sh` | Finisher: waits for SSH → installs Parallels Tools ARM64 → writes `monitors.lua` (2560×1600 @ scale 2) → reloads Hyprland → verifies. Usage: `./tools/post-install.sh [vm-name] [ssh-key] [guest-user]`. STOPS with a clear error if the first-boot wizard hasn't created a desktop user yet |
+| MAC addresses | **Randomized per build** (`001C42` OUI + random bytes for guest + host MACs). Cloned configs share MACs → DHCP fight → second VM never gets an IP. Template carries `__GUEST_MAC__`/`__HOST_MAC__` placeholders | → installs Parallels Tools ARM64 → writes `monitors.lua` (2560×1600 @ scale 2) → reloads Hyprland → verifies. Usage: `./tools/post-install.sh [vm-name] [ssh-key] [guest-user]` |
 | `skill/SKILL.md` | Agent-skill wrapper (goose/Claude-style): triggers + condensed manual. Points here |
 | `docs/HOW-IT-WORKS.md` | Full engineering write-up incl. every dead end and the resolution |
 | `README.md` | Human-facing quickstart |

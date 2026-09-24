@@ -287,6 +287,9 @@ PY
 log "scaffolding the VM bundle"
 VM_UUID="$(new_uuid)"
 DISK_UUID="$(new_uuid)"
+rand_mac() { python3 -c 'import random; print("001C42%02X%02X%02X" % (random.randrange(256), random.randrange(256), random.randrange(256)))'; }
+GUEST_MAC="$(rand_mac)"
+HOST_MAC="$(rand_mac)"
 SIZE_ON_DISK_MB="$(du -m "$HDS" | awk '{print $1}')"
 # VM.app stub: reuse Parallels' own from an existing VM when available;
 # otherwise omit it (Parallels recreates it on first launch/register).
@@ -298,16 +301,19 @@ else
   info "no existing VM.app found — omitting (Parallels recreates it)"
 fi
 python3 - "$SCRIPT_DIR/templates/config.pvs.tmpl" "$PVM/config.pvs" \
-  "$VM_NAME" "$VM_UUID" "$DISK_UUID" "$DISK_NAME" "$DISK_SIZE_MIB" "$SIZE_ON_DISK_MB" <<'PY'
+  "$VM_NAME" "$VM_UUID" "$DISK_UUID" "$DISK_NAME" "$DISK_SIZE_MIB" "$SIZE_ON_DISK_MB" \
+  "$GUEST_MAC" "$HOST_MAC" <<'PY'
 import sys
-tmpl, out, name, vmu, disku, diskname, sizemb, sodmb = sys.argv[1:9]
+tmpl, out, name, vmu, disku, diskname, sizemb, sodmb, gmac, hmac = sys.argv[1:11]
 s = (open(tmpl).read()
      .replace("__VM_NAME__", name)
      .replace("__VM_UUID__", vmu)
      .replace("__DISK_UUID__", disku)
      .replace("__DISK_NAME__", diskname)
      .replace("__DISK_SIZE_MB__", sizemb)
-     .replace("__DISK_SIZE_ON_DISK_MB__", sodmb))
+     .replace("__DISK_SIZE_ON_DISK_MB__", sodmb)
+     .replace("__GUEST_MAC__", gmac)
+     .replace("__HOST_MAC__", hmac))
 open(out, "w").write(s)
 open(out.replace("config.pvs", "config.pvs.backup"), "w").write(s)
 PY
