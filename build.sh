@@ -57,11 +57,25 @@ new_uuid() { python3 -c 'import uuid; print("{%s}" % uuid.uuid4())'; }
 
 # ---------- 0. environment ----------
 [[ "$(uname -m)" == "arm64" ]] || die "this builder targets Apple Silicon (arm64); got $(uname -m)"
+MACOS_VER="$(sw_vers -productVersion 2>/dev/null || echo 0)"
+MACOS_MAJOR="$(printf '%s' "$MACOS_VER" | cut -d. -f1)"
+[[ "$MACOS_MAJOR" -ge 14 ]] || die "macOS 14+ required (found $MACOS_VER); Parallels 19+ needs it"
 PARALLELS_APP="/Applications/Parallels Desktop.app"
 [[ -d "$PARALLELS_APP" ]] || die "Parallels Desktop not found at $PARALLELS_APP"
 PRLCTL="/usr/local/bin/prlctl"
 PRL_DISK_TOOL="/usr/local/bin/prl_disk_tool"
 [[ -x "$PRLCTL" ]] || die "prlctl not found — is Parallels Desktop installed?"
+PRL_VER="$("$PRLCTL" --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+' | head -1)"
+PRL_MAJOR="$(printf '%s' "$PRL_VER" | cut -d. -f1)"
+[[ "${PRL_MAJOR:-0}" -ge 19 ]] || die "Parallels Desktop 19+ required (found ${PRL_VER:-unknown})"
+info "host: macOS $MACOS_VER, Parallels $PRL_VER"
+FREE_GB="$(df -g "$HOME" 2>/dev/null | tail -1 | awk '{print $4}')"
+if [[ -n "$FREE_GB" && "$FREE_GB" -lt 15 ]]; then
+  die "need ~15 GB free (found ${FREE_GB} GB)"
+fi
+if [[ -n "${SSH_KEY:-}" && ! -f "$SSH_KEY" ]]; then
+  die "--ssh-key file not found: $SSH_KEY"
+fi
 command -v python3 >/dev/null || die "python3 required"
 command -v cpio    >/dev/null || die "cpio required (ships with macOS)"
 
@@ -349,12 +363,15 @@ cat <<EOF
     ext4 UUID  : $FS_UUID
     root size  : ${ROOT_SIZE_GIB} GiB
 
+    NEXT STEPS (in order):
+    1. The VM window opens now. On first boot, press Return at the
+       "Press Return to Start Setup" screen and create your user
+       (this is Omarchy's interactive first-boot wizard).
+    2. Then finish the setup from your Mac (Parallels Tools + display):
+         ./tools/post-install.sh "$VM_NAME" ${SSH_KEY:+<your-private-key>}
+       (uses the SSH key matching --ssh-key, or ~/.ssh/id_ed25519)
+
     first boot takes a few minutes (systemd initial bootstrap).
-    the boot entry passes tryomarchy.ssh_access=1, so once booted:
-
-      GUEST_IP=\$(grep -o '10\\.211\\.55\\.[0-9]*' "$LEASES" 2>/dev/null | head -1)
-      ssh "omarchy@\$GUEST_IP"     # or the desktop user you set up
-
 EOF
 
 if [[ "$SKIP_BOOT" != "1" ]]; then

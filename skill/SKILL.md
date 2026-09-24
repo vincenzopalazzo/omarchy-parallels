@@ -31,7 +31,9 @@ ESP, GPT, plain .hds, VM scaffold, register, launch):
 ```bash
 git clone https://github.com/vincenzopalazzo/omarchy-parallels
 cd omarchy-parallels
-./build.sh                       # add --vm-name NAME to choose a name
+./build.sh --ssh-key ~/.ssh/id_ed25519.pub     # add --vm-name NAME to choose a name
+# 1. press Return in the VM window, create your user (first-boot wizard)
+./tools/post-install.sh "Omarchy ARM" ~/.ssh/id_ed25519   # 2. tools + display
 ```
 
 Requirements: Apple Silicon Mac, Parallels Desktop 19+ (tested 27.0.2 Standard

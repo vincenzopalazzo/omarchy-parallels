@@ -41,15 +41,25 @@ official try-omarchy.dmg ──► ARM64 Omarchy rootfs ──► GPT disk (ESP 
 ```bash
 git clone https://github.com/vincenzopalazzo/omarchy-parallels
 cd omarchy-parallels
-./build.sh                        # creates a VM named "Omarchy ARM"
-./build.sh --vm-name "Omarchy"    # or any name you like
+./build.sh --ssh-key ~/.ssh/id_ed25519.pub   # creates a VM named "Omarchy ARM"
 ```
 
 The script downloads the official `TryOmarchy.dmg` (~1.4 GB), verifies every
 artifact SHA256 against the bundled manifest, builds the disk, creates and
-registers the VM, and opens it in Parallels. First boot takes a few minutes
-(systemd initial bootstrap), after which you have the Omarchy desktop with a
-16 GiB root filesystem ready for `pacman -Syu`.
+registers the VM, and opens it in Parallels.
+
+**Then finish in two steps:**
+
+1. **In the VM window**: press Return at the setup screen and create your user
+   (Omarchy's interactive first-boot wizard — takes ~1 minute).
+2. **Back on your Mac** — Parallels Tools + sharp display, one command:
+   ```bash
+   ./tools/post-install.sh "Omarchy ARM" ~/.ssh/id_ed25519
+   ```
+   This installs the ARM64 Parallels Tools (dynamic-resolution channel +
+   clipboard), pins the Hyprland mode to 2560×1600 @ scale 2, and verifies
+   everything. If the UI feels too small/big afterwards, change one number
+   (`scale = 2`) in `~/.config/hypr/monitors.lua` inside the guest.
 
 Useful flags:
 

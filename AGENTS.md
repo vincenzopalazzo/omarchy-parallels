@@ -48,6 +48,7 @@ Free CLI: `prlctl list|register|unregister`. Launch via `open <file>.pvm`.
 | `templates/VmInfo.pvi.tmpl` | Minimal per-VM info file |
 | `tools/get-screen.sh` | Screenshot the guest screen over SSH by reading `/dev/fb0` and converting BGRA→PNG locally (no macOS screen-recording permission needed) |
 | `tools/status.sh` | One-shot machine-readable state probe (host + guest), `key=value` lines |
+| `tools/post-install.sh` | Finisher: waits for SSH → installs Parallels Tools ARM64 → writes `monitors.lua` (2560×1600 @ scale 2) → reloads Hyprland → verifies. Usage: `./tools/post-install.sh [vm-name] [ssh-key] [guest-user]` |
 | `skill/SKILL.md` | Agent-skill wrapper (goose/Claude-style): triggers + condensed manual. Points here |
 | `docs/HOW-IT-WORKS.md` | Full engineering write-up incl. every dead end and the resolution |
 | `README.md` | Human-facing quickstart |
@@ -120,7 +121,11 @@ are rejected with `PRL_ERR_DISK_XML_INVALID`).
 git clone https://github.com/vincenzopalazzo/omarchy-parallels && cd omarchy-parallels
 ./build.sh --vm-name "Omarchy ARM" --ssh-key ~/.ssh/id_ed25519.pub
 ```
-Then: press Return in the VM window on first boot (setup wizard).
+Then, in order:
+1. In the VM window: press Return at the setup screen, create your user
+   (Omarchy's interactive first-boot wizard).
+2. Back on the Mac: `./tools/post-install.sh "Omarchy ARM" ~/.ssh/id_ed25519`
+   (Parallels Tools + display config + verification).
 
 ### SOP-02 — Verify a boot
 ```bash
