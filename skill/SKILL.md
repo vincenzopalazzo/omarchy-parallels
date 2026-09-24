@@ -122,8 +122,8 @@ The script is idempotent-safe: it refuses to overwrite an existing VM name.
 - **Omarchy 4 config is LUA** (`hyprland.lua` + `monitors.lua`) — edits to
   `hyprland.conf` are silently ignored. Override:
   `~/.config/hypr/monitors.lua` with
-  `hl.monitor({ output = "Virtual-1", mode = "2560x1600", position = "0x0", scale = 1 })`
-  then `hyprctl reload` (verified: `2560x1600@59.99` applied).
+  `hl.monitor({ output = "Virtual-1", mode = "2560x1600", position = "0x0", scale = 2 })`
+  then `hyprctl reload` (verified live: `2560x1600@59.99`, scale 2 → logical 1280×800 on a 2× window — user-confirmed perfect).
 
 ### The three traps that cost a day (all fixed in build.sh)
 

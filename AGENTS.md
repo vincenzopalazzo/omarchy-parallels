@@ -185,9 +185,9 @@ edit is silently ignored; the log line is `[cfg] Regular config at
 ```bash
 cat > /home/<user>/.config/hypr/monitors.lua <<'EOF'
 local omarchy_gdk_scale = 2
-local omarchy_monitor_scale = 1
+local omarchy_monitor_scale = 2
 hl.env("GDK_SCALE", tostring(omarchy_gdk_scale))
-hl.monitor({ output = "Virtual-1", mode = "2560x1600", position = "0x0", scale = 1 })
+hl.monitor({ output = "Virtual-1", mode = "2560x1600", position = "0x0", scale = 2 })
 EOF
 chown <user>:<user> /home/<user>/.config/hypr/monitors.lua
 # reload as the user (SIG = ls /run/user/1000/hypr/ | head -1):
@@ -195,8 +195,10 @@ sudo -u <user> env XDG_RUNTIME_DIR=/run/user/1000 WAYLAND_DISPLAY=wayland-1 \
   HYPRLAND_INSTANCE_SIGNATURE=$SIG hyprctl reload
 ```
 
-`2560x1600` is in the virtio-gpu mode list and is 16:10 Retina-class; scale 1.
-Result: sharp full-size desktop; fullscreen on a 2560×1440 panel ≈ 1:1 pixels.
+`2560x1600` is in the virtio-gpu mode list and is 16:10 Retina-class.
+**Verified-by-user final state: mode 2560x1600, scale 2 → logical 1280×800** —
+matches the Parallels window's point size on a 2× Retina display.
+Tuning rule: bigger UI = higher scale, smaller UI = lower scale.
 Available modes: 1160x768, 1920x1440, 2560x1600, 4096x2160.
 
 ### SOP-08 — (Re)install Parallels Tools
