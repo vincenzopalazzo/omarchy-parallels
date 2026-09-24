@@ -5,6 +5,10 @@ description: Builds and boots an ARM64 Omarchy (Quattro) Linux VM natively in Pa
 
 # Omarchy ARM64 in Parallels Desktop (Apple Silicon)
 
+> **Canonical operating manual: [`AGENTS.md`](../AGENTS.md)** in the repo —
+> file map, constants, SOPs (01–10), failure-mode table, verification
+> checklist. This SKILL.md is the condensed wrapper; AGENTS.md always wins.
+
 ## Context you must know before acting
 
 - The official Omarchy ISO (iso.omarchy.org) is **x86_64-only** (isolinux/SYSLINUX,

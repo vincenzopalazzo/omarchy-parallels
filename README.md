@@ -1,5 +1,11 @@
 # Omarchy ARM64 on Parallels Desktop — natively, on Apple Silicon
 
+> **AI agents / automation**: start with [`AGENTS.md`](AGENTS.md) — it is the
+> canonical operating manual (file map, constants, SOPs, failure modes,
+> verification checklist). [`tools/status.sh`](tools/status.sh) emits a
+> machine-readable state probe; [`skill/SKILL.md`](skill/SKILL.md) is the
+> packaged skill wrapper.
+
 **Run [Omarchy](https://omarchy.org) (Quattro) on your M-series Mac inside
 Parallels Desktop — no Parallels Pro, no x86 emulation, no QEMU.**
 
