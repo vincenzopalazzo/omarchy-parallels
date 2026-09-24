@@ -76,6 +76,16 @@ fi
 if [[ -n "${SSH_KEY:-}" && ! -f "$SSH_KEY" ]]; then
   die "--ssh-key file not found: $SSH_KEY"
 fi
+if [[ -z "${SSH_KEY:-}" ]]; then
+  SSH_KEY="$WORKDIR/omarchy-ssh.pub"
+  if [[ ! -f "$SSH_KEY" ]]; then
+    log "no --ssh-key given — generating an ephemeral keypair in the workdir"
+    ssh-keygen -t ed25519 -N "" -C "omarchy-parallels" -f "${SSH_KEY%.pub}" -q
+  else
+    info "reusing previously generated key: $SSH_KEY"
+  fi
+  GENERATED_KEY=1
+fi
 command -v python3 >/dev/null || die "python3 required"
 command -v cpio    >/dev/null || die "cpio required (ships with macOS)"
 
@@ -169,13 +179,10 @@ log "building EFI System Partition (${ESP_SIZE_MIB} MiB)"
 ESP_DIR="$WORKDIR/esp-root"
 rm -rf "$ESP_DIR"; mkdir -p "$ESP_DIR/EFI/BOOT" "$ESP_DIR/EFI/systemd" "$ESP_DIR/loader/entries"
 cp "$WORKDIR/vmlinuz-linux" "$ESP_DIR/Image"
-cp "$WORKDIR/initramfs-linux.img" "$ESP_DIR/"
-if [[ -n "${SSH_KEY:-}" ]]; then
-  log "patching initramfs: inject SSH key ($SSH_KEY) + kmsg stream"
-  python3 "$SCRIPT_DIR/lib/patch_initramfs.py" \
-    "$WORKDIR/initramfs-linux.img" "$WORKDIR/initramfs-linux.img" \
-    10.211.55.2 4499 "$SSH_KEY"
-fi
+log "patching initramfs: inject SSH key ($SSH_KEY) + kmsg stream"
+python3 "$SCRIPT_DIR/lib/patch_initramfs.py" \
+  "$WORKDIR/initramfs-linux.img" "$ESP_DIR/initramfs-linux.img" \
+  10.211.55.2 4499 "$SSH_KEY"
 cp "$WORKDIR/systemd-bootaa64.efi" "$ESP_DIR/EFI/BOOT/BOOTAA64.EFI"
 cp "$WORKDIR/systemd-bootaa64.efi" "$ESP_DIR/EFI/systemd/systemd-bootaa64.efi"
 cat > "$ESP_DIR/loader/loader.conf" <<EOF
@@ -203,7 +210,7 @@ newfs_msdos -F 32 -v OMARCHYEFI "$ESP_DEV" >/dev/null
 hdiutil detach "$ESP_DEV" >/dev/null
 ESP_MOUNT="$(hdiutil attach -nobrowse "$ESP_IMG" | sed -n 's/.*\(\/Volumes\/.*\)$/\1/p')"
 [[ -n "$ESP_MOUNT" ]] || die "could not mount the freshly formatted ESP"
-ditto "$ESP_DIR/" "$ESP_MOUNT"/
+COPYFILE_DISABLE=1 ditto "$ESP_DIR/" "$ESP_MOUNT"/
 hdiutil detach "$ESP_MOUNT" >/dev/null
 
 # ---------- 3. layout + Parallels plain disk ----------
@@ -282,26 +289,13 @@ VM_UUID="$(new_uuid)"
 DISK_UUID="$(new_uuid)"
 SIZE_ON_DISK_MB="$(du -m "$HDS" | awk '{print $1}')"
 # VM.app stub: reuse Parallels' own from an existing VM when available;
-# otherwise synthesize a minimal one (we do not redistribute Parallels files).
+# otherwise omit it (Parallels recreates it on first launch/register).
+# We never redistribute Parallels files.
 EXISTING_APP="$(find "$VM_DIR" -maxdepth 3 -type d -name VM.app 2>/dev/null | head -1 || true)"
 if [[ -n "${EXISTING_APP:-}" ]]; then
   cp -R "$EXISTING_APP" "$PVM/VM.app"
 else
-  mkdir -p "$PVM/VM.app/Contents/MacOS" "$PVM/VM.app/Contents/Resources"
-  cat > "$PVM/VM.app/Contents/Info.plist" <<'PLIST'
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>CFBundleExecutable</key><string></string>
-    <key>CFBundleIdentifier</key><string>local.omarchy-parallels.vmstub</string>
-    <key>CFBundleName</key><string>VM</string>
-    <key>CFBundlePackageType</key><string>APPL</string>
-    <key>CFBundleShortVersionString</key><string>1.0</string>
-</dict>
-</plist>
-PLIST
-  printf 'APPL????' > "$PVM/VM.app/Contents/PkgInfo"
+  info "no existing VM.app found — omitting (Parallels recreates it)"
 fi
 python3 - "$SCRIPT_DIR/templates/config.pvs.tmpl" "$PVM/config.pvs" \
   "$VM_NAME" "$VM_UUID" "$DISK_UUID" "$DISK_NAME" "$DISK_SIZE_MIB" "$SIZE_ON_DISK_MB" <<'PY'
@@ -321,7 +315,7 @@ NVRAM_SRC="$(find "$VM_DIR" -maxdepth 2 -name NVRAM.dat 2>/dev/null | head -1 ||
 if [[ -n "${NVRAM_SRC:-}" ]]; then
   cp "$NVRAM_SRC" "$PVM/NVRAM.dat"
 else
-  python3 -c "import sys; open(sys.argv[1],'wb').truncate(385024)" "$PVM/NVRAM.dat"
+  info "no existing NVRAM.dat found — omitting (Parallels generates it)"
 fi
 cp "$SCRIPT_DIR/templates/VmInfo.pvi.tmpl" "$PVM/VmInfo.pvi"
 
@@ -368,8 +362,8 @@ cat <<EOF
        "Press Return to Start Setup" screen and create your user
        (this is Omarchy's interactive first-boot wizard).
     2. Then finish the setup from your Mac (Parallels Tools + display):
-         ./tools/post-install.sh "$VM_NAME" ${SSH_KEY:+<your-private-key>}
-       (uses the SSH key matching --ssh-key, or ~/.ssh/id_ed25519)
+         ./tools/post-install.sh "$VM_NAME" "${SSH_KEY%.pub}"
+       (SSH private key ${GENERATED_KEY:+auto-generated alongside }$SSH_KEY)
 
     first boot takes a few minutes (systemd initial bootstrap).
 EOF
