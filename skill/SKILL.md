@@ -92,6 +92,28 @@ The script is idempotent-safe: it refuses to overwrite an existing VM name.
 - Parallels Standard edition: `prlctl start/stop/status/capture/snapshot-list/
   create` are Pro-gated; use `open <pvm>` to launch, and GUI for power ops.
 
+### The three traps that cost a day (all fixed in build.sh)
+
+1. **No-initramfs panic**: without initramfs the kernel mounts root immediately;
+   if AHCI hasn't enumerated yet → `VFS: unable to mount root` panic. Always
+   keep the initramfs entry + `rootwait`.
+2. **Resume trap**: killing `prl_vm_app` leaves `*.mem`/`*.mem.sh` — Parallels
+   then *resumes the dead state* on next open instead of cold-booting. Delete
+   `*.mem*` and `vm.lock` in the `.pvm` before relaunching.
+3. **Stale ESP flakiness**: after several dd-in-place edits, rebuild the ESP
+   from scratch (fresh `newfs_msdos` + pour) — loader hangs vanished.
+
+### Eyes on the guest (no UART, no macOS permissions)
+
+- `tools/get-screen.sh` — SSH in, `dd if=/dev/fb0`, convert BGRA→PNG locally:
+  pixel-exact screenshots of the VM window.
+- `lib/patch_initramfs.py` — splice a patched `/init` into the initramfs that
+  streams `/proc/kmsg` over TCP to the host and injects an SSH public key into
+  `/sysroot/root/.ssh` before `switch_root`. build.sh does this automatically
+  with `--ssh-key <pubkey>`.
+- Raw `debugfs -w` writes bypass journaling AND `sif mode` sets raw mode bits
+  (directories need `040xxx`, files `100xxx`) — prefer the initramfs injection.
+
 ## Ethics & legal
 
 Do not redistribute Parallels' or the try-omarchy artifacts; build.sh downloads

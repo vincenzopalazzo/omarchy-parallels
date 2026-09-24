@@ -96,6 +96,12 @@ quirks, ghost registrations, descriptor format, boot debugging via
 `parallels.log` and DHCP leases). The agent skill in
 [`skill/SKILL.md`](skill/SKILL.md) encodes the same knowledge for coding agents.
 
+## Tools
+
+- `tools/get-screen.sh` — screenshot the VM's screen over SSH (reads the guest
+  framebuffer; needs no macOS screen-recording permission):
+  `./tools/get-screen.sh screen.png ~/.ssh/id_ed25519 root@10.211.55.5`
+
 ## FAQ
 
 **Why not just boot the official ISO in UTM/QEMU emulation?**

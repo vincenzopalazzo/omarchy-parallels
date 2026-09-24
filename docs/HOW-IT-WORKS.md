@@ -204,3 +204,43 @@ Useful debug signals:
   `parallels.log` excerpts if a device is missing.
 - Nested virtualization inside the guest (their M3+/macOS 26 feature) is a
   QEMU/HVF property, not available through Parallels.
+
+## 8. Resolution (2026-09-23): it boots ✅
+
+Working combo: **initramfs present + `rootwait` + a fresh ESP build**.
+
+- The panic users saw came from the no-initramfs entry: the kernel attempted
+  the root mount before AHCI enumeration finished → `VFS: unable to mount
+  root` → panic. The initramfs's `block`/`filesystems` hooks + `rootwait`
+  wait for the device properly.
+- The "infinite spin" boots were a Parallels **resume trap**: `kill -9` of
+  `prl_vm_app` leaves a suspend snapshot (`*.mem`, `*.mem.sh`); the next
+  `open` *resumes the dead state* instead of cold-booting. Delete `*.mem*`
+  and `vm.lock` before relaunching.
+- After several dd-in-place edits, rebuilding the ESP from scratch (fresh
+  `newfs_msdos` + fresh pour) eliminated residual loader flakiness.
+- The try-omarchy kernel is **byte-identical** to stock Arch Linux ARM
+  `linux-aarch64` 7.2.6-1 (`sha256 6c439977…`) — no kernel work needed.
+
+Verified end-to-end: systemd default target reached, `omarchy-provision-owner`
+first-boot wizard running on the framebuffer, DRM `card0` + `renderD128`
+present, `omarchy-native-camera/audio-bridge` running, SSH reachable,
+Omarchy 4.0.3 on Arch Linux ARM, 16 GiB rootfs at 31% usage.
+
+### Console without a UART
+
+The guest UART is not observable from the host (`/dev/cu.debug-console` and
+serial-to-file both stay silent), and macOS TCC blocks screen capture. Two
+workarounds shipped:
+
+1. **Framebuffer exfiltration** — `tools/get-screen.sh` reads `/dev/fb0` over
+   SSH and converts BGRA→PNG locally: pixel-exact screenshots of the VM
+   window, zero host permissions needed.
+2. **initramfs patching** — `lib/patch_initramfs.py` splices a patched
+   `/init` into the initramfs that (a) brings up eth0 and streams
+   `/proc/kmsg` over TCP to the host, and (b) injects an SSH public key into
+   `/sysroot/root/.ssh/authorized_keys` right before `switch_root`
+   (journal-safe — raw `debugfs -w` writes get reverted by journal replay,
+   and `debugfs sif mode` sets raw mode bits: directories need `040xxx`).
+
+`build.sh --ssh-key ~/.ssh/id_ed25519.pub` applies (2) automatically.

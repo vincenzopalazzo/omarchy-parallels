@@ -31,7 +31,7 @@ usage() {
   cat <<EOF
 usage: ./build.sh [--vm-name NAME] [--dmg PATH] [--release TAG]
                   [--root-size-gib N] [--esp-size-mib N] [--disk-size-mib N]
-                  [--workdir DIR] [--skip-boot] [--keep-dmgs]
+                  [--workdir DIR] [--ssh-key PUBKEY] [--skip-boot] [--keep-dmgs]
 EOF
   exit 0
 }
@@ -47,6 +47,7 @@ while [[ $# -gt 0 ]]; do
     --workdir)        WORKDIR="$2"; shift 2 ;;
     --skip-boot)      SKIP_BOOT=1; shift ;;
     --keep-dmgs)      KEEP_DMGS=1; shift ;;
+    --ssh-key)        SSH_KEY="$2"; shift 2 ;;
     -h|--help)        usage ;;
     *) die "unknown argument: $1 (see --help)" ;;
   esac
@@ -155,6 +156,12 @@ ESP_DIR="$WORKDIR/esp-root"
 rm -rf "$ESP_DIR"; mkdir -p "$ESP_DIR/EFI/BOOT" "$ESP_DIR/EFI/systemd" "$ESP_DIR/loader/entries"
 cp "$WORKDIR/vmlinuz-linux" "$ESP_DIR/Image"
 cp "$WORKDIR/initramfs-linux.img" "$ESP_DIR/"
+if [[ -n "${SSH_KEY:-}" ]]; then
+  log "patching initramfs: inject SSH key ($SSH_KEY) + kmsg stream"
+  python3 "$SCRIPT_DIR/lib/patch_initramfs.py" \
+    "$WORKDIR/initramfs-linux.img" "$WORKDIR/initramfs-linux.img" \
+    10.211.55.2 4499 "$SSH_KEY"
+fi
 cp "$WORKDIR/systemd-bootaa64.efi" "$ESP_DIR/EFI/BOOT/BOOTAA64.EFI"
 cp "$WORKDIR/systemd-bootaa64.efi" "$ESP_DIR/EFI/systemd/systemd-bootaa64.efi"
 cat > "$ESP_DIR/loader/loader.conf" <<EOF
