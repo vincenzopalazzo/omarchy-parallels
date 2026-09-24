@@ -21,7 +21,7 @@ A build is DONE when all of the following hold:
 3. `prltoolsd.service` active inside the guest (dynamic resolution, clipboard).
 4. Guest reachable from host: `ping 10.211.55.<x>` and TCP port 22 open.
 5. SSH as root works with the injected key (see SOP-04).
-6. Screenshot possible via `tools/get-screen.sh` (framebuffer proof).
+6. Screenshot possible via `skills/omarchy-parallels/scripts/get-screen.sh` (or the `vm_screenshot` MCP tool).
 
 ## 2. Environment contract
 
@@ -46,11 +46,13 @@ Free CLI: `prlctl list|register|unregister`. Launch via `open <file>.pvm`.
 | `lib/patch_initramfs.py` | Splices a patched `/init` into the (uncompressed cpio) mkinitcpio initramfs: (a) early block — bring up `eth0`, stream `/proc/kmsg` over TCP to the host; (b) late block — write SSH pubkey into `/sysroot/root/.ssh/authorized_keys` before `switch_root`. Preserves cpio entry names **exactly** |
 | `templates/config.pvs.tmpl` | Working Parallels VM config for a generic arm64 Linux guest (OsType 9 / OsNumber 2559, SATA HDD, EFI `EfiEnabled 5`, HDD-first boot order, virtio net). Placeholders: `__VM_NAME__ __VM_UUID__ __DISK_UUID__ __DISK_NAME__ __DISK_SIZE_MB__ __DISK_SIZE_ON_DISK_MB__` |
 | `templates/VmInfo.pvi.tmpl` | Minimal per-VM info file |
-| `tools/get-screen.sh` | Screenshot the guest screen over SSH by reading `/dev/fb0` and converting BGRA→PNG locally (no macOS screen-recording permission needed) |
-| `tools/status.sh` | One-shot machine-readable state probe (host + guest), `key=value` lines |
-| `tools/post-install.sh` | Finisher: waits for SSH → installs Parallels Tools ARM64 → writes `monitors.lua` (2560×1600 @ scale 2) → reloads Hyprland → verifies. Usage: `./tools/post-install.sh [vm-name] [ssh-key] [guest-user]`. STOPS with a clear error if the first-boot wizard hasn't created a desktop user yet |
+| `skills/omarchy-parallels/scripts/get-screen.sh` (`tools/` has a compat wrapper) | Screenshot the guest screen over SSH by reading `/dev/fb0` and converting BGRA→PNG locally (no macOS screen-recording permission needed) |
+| `skills/omarchy-parallels/scripts/status.sh` (`tools/` has a compat wrapper) | One-shot machine-readable state probe (host + guest), `key=value` lines |
+| `skills/omarchy-parallels/scripts/post-install.sh` (`tools/` has a compat wrapper) | Finisher: waits for SSH → installs Parallels Tools ARM64 → writes `monitors.lua` (2560×1600 @ scale 2) → reloads Hyprland → verifies. Usage: `./tools/post-install.sh [vm-name] [ssh-key] [guest-user]`. STOPS with a clear error if the first-boot wizard hasn't created a desktop user yet |
 | MAC addresses | **Randomized per build** (`001C42` OUI + random bytes for guest + host MACs). Cloned configs share MACs → DHCP fight → second VM never gets an IP. Template carries `__GUEST_MAC__`/`__HOST_MAC__` placeholders | → installs Parallels Tools ARM64 → writes `monitors.lua` (2560×1600 @ scale 2) → reloads Hyprland → verifies. Usage: `./tools/post-install.sh [vm-name] [ssh-key] [guest-user]` |
-| `skill/SKILL.md` | Agent-skill wrapper (goose/Claude-style): triggers + condensed manual. Points here |
+| `skills/omarchy-parallels/SKILL.md` | Agent skill (Agent Skills spec format). Points here |
+| `mcp-server/server.py` | stdio MCP server (stdlib-only): `vm_status`, `vm_screenshot`, `vm_exec`, `vm_display_get`, `vm_display_set`. Declared in `mcp.json` |
+| `plugin.json` / `mcp.json` | Agent Plugins v1.0.0 manifest + MCP declaration (see `README.md` § Agent Plugin) |
 | `docs/HOW-IT-WORKS.md` | Full engineering write-up incl. every dead end and the resolution |
 | `README.md` | Human-facing quickstart |
 

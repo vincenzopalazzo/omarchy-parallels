@@ -1,0 +1,23 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "omarchy-parallels",
+  "version": "1.0.0",
+  "description": "Run Omarchy (ARM64) natively in Parallels Desktop on Apple Silicon: one-command VM builder, agent skill, and MCP server for operating the guest.",
+  "author": {
+    "name": "Vincenzo Palazzo",
+    "email": "vincenzopalazzodev@gmail.com",
+    "url": "https://github.com/vincenzopalazzo"
+  },
+  "homepage": "https://github.com/vincenzopalazzo/omarchy-parallels",
+  "repository": "https://github.com/vincenzopalazzo/omarchy-parallels",
+  "license": "MIT",
+  "keywords": [
+    "omarchy",
+    "parallels",
+    "apple-silicon",
+    "arch-linux",
+    "virtual-machine",
+    "agent-skill",
+    "mcp"
+  ]
+}

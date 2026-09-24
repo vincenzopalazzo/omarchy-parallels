@@ -3,7 +3,7 @@
 > **AI agents / automation**: start with [`AGENTS.md`](AGENTS.md) — it is the
 > canonical operating manual (file map, constants, SOPs, failure modes,
 > verification checklist). [`tools/status.sh`](tools/status.sh) emits a
-> machine-readable state probe; [`skill/SKILL.md`](skill/SKILL.md) is the
+> machine-readable state probe; [`skills/omarchy-parallels/SKILL.md`](skills/omarchy-parallels/SKILL.md) is the
 > packaged skill wrapper.
 
 **Run [Omarchy](https://omarchy.org) (Quattro) on your M-series Mac inside
@@ -110,13 +110,40 @@ work, Parallels' disk descriptor format, every failure mode we hit) is in
 See `docs/HOW-IT-WORKS.md` for the complete table (GPT/`hdiutil`/`newfs_msdos`
 quirks, ghost registrations, descriptor format, boot debugging via
 `parallels.log` and DHCP leases). The agent skill in
-[`skill/SKILL.md`](skill/SKILL.md) encodes the same knowledge for coding agents.
+[`skills/omarchy-parallels/SKILL.md`](skills/omarchy-parallels/SKILL.md) encodes the same knowledge for coding agents.
 
 ## Tools
 
 - `tools/get-screen.sh` — screenshot the VM's screen over SSH (reads the guest
   framebuffer; needs no macOS screen-recording permission):
   `./tools/get-screen.sh screen.png ~/.ssh/id_ed25519 root@10.211.55.5`
+  (thin wrappers — canonical scripts live in
+  `skills/omarchy-parallels/scripts/`)
+
+## Agent Plugin (skills + MCP, portable)
+
+This repo is packaged as an [Agent Plugins](https://agent-plugins.org) v1.0.0
+plugin (see [aaif-goose/goose#11043](https://github.com/aaif-goose/goose/issues/11043)):
+
+```text
+omarchy-parallels/
+├── plugin.json                  # manifest (identity + spec version)
+├── mcp.json                     # MCP server declaration (stdio)
+├── skills/omarchy-parallels/    # agent skill (SKILL.md + scripts/)
+│   ├── SKILL.md
+│   └── scripts/                 # status.sh, get-screen.sh, post-install.sh
+├── mcp-server/server.py         # stdio MCP server (stdlib-only Python)
+└── … (build.sh, lib/, templates/, docs/ — the builder itself)
+```
+
+- **Skill**: `skills/omarchy-parallels/SKILL.md` (Agent Skills format).
+- **MCP server**: `mcp-server/server.py` exposes `vm_status`,
+  `vm_screenshot`, `vm_exec`, `vm_display_get`, `vm_display_set` — the exact
+  operations used to build and debug the VM. Run
+  `OMARCHY_SSH_KEY=~/.ssh/id_ed25519 python3 mcp-server/server.py`
+  (see `mcp-server/README.md` for client wiring + smoke test).
+- Install the whole directory as a plugin in any Agent-Plugins-compatible
+  client; `tools/*.sh` remain as CLI wrappers for humans.
 
 ## FAQ
 

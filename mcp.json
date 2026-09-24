@@ -1,0 +1,14 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
+  "mcpServers": {
+    "omarchy-parallels": {
+      "type": "stdio",
+      "command": "python3",
+      "args": ["${PLUGIN_ROOT}/mcp-server/server.py"],
+      "cwd": "${PLUGIN_ROOT}",
+      "env": {
+        "OMARCHY_VM_NAME": "Omarchy ARM"
+      }
+    }
+  }
+}
