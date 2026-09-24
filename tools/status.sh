@@ -49,6 +49,10 @@ if [[ -n "$GIP" ]]; then
       "root@$GIP" 'systemctl is-active prltoolsd' 2>/dev/null || echo unknown)"
     say guest_resolution "$(ssh -i "$KEY" -o BatchMode=yes -o ConnectTimeout=6 \
       -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-      "root@$GIP" 'cat /sys/class/graphics/fb0/virtual_size 2>/dev/null' 2>/dev/null || echo unknown)"
+      "root@$GIP" 'SIG=$(ls /run/user/1000/hypr/ 2>/dev/null | head -1); \
+        if [ -n "$SIG" ]; then \
+          sudo -u $(ls /home | head -1) env XDG_RUNTIME_DIR=/run/user/1000 WAYLAND_DISPLAY=wayland-1 \
+            HYPRLAND_INSTANCE_SIGNATURE=$SIG hyprctl monitors 2>/dev/null | sed -n 2p; \
+        else cat /sys/class/graphics/fb0/virtual_size 2>/dev/null; fi' 2>/dev/null || echo unknown)"
   fi
 fi
