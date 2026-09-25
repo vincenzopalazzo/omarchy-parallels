@@ -151,10 +151,14 @@ for kv in $(cat /proc/cmdline); do
 done
 if [ "$ISO_DEV" = "auto" ] || [ -z "$ISO_DEV" ]; then
   echo "[live-init] scanning for ISO device"
-  for d in /dev/sr[0-9]* /dev/hd[a-z] /dev/sd[a-z] /dev/vd[a-z] /dev/nvme[0-9]n[0-9]; do
+  mark SCAN_START 2049
+  # NOTE: single mount-try path only (busybox blkid was observed to hang on
+  # some ATAPI devices). Every attempt is timeout-guarded; TRY_* shows the
+  # latest attempt on the scratch-disk breadcrumb trail.
+  for d in /dev/sr0 /dev/sr1 /dev/sr[0-9]* /dev/hd[a-z] /dev/sd[a-z] /dev/vd[a-z] /dev/nvme[0-9]n[0-9]; do
     [ -b "$d" ] || continue
-    if blkid -s TYPE -o value "$d" 2>/dev/null | grep -qi iso9660; then ISO_DEV="$d"; break; fi
-    if timeout 10 mount -t iso9660 -o ro "$d" /iso 2>/dev/null; then
+    mark "TRY_$d" 2060
+    if timeout 20 mount -t iso9660 -o ro "$d" /iso 2>/dev/null; then
       if [ -f /iso/omarchy.sfs ]; then ISO_DEV="$d"; umount /iso; break; fi
       umount /iso 2>/dev/null
     fi
@@ -198,17 +202,16 @@ mount -t overlay overlay -o lowerdir=/sfs,upperdir=/ovl/upper,workdir=/ovl/work 
   || { echo "[live-init] FATAL: overlay mount failed"; exec sh; }
 # neutralize installer-time fstab (points at the build machine's disks)
 : > /sysroot/etc/fstab
-# optional live SSH key (builder replaces __LIVE_SSH_KEY__ with a pubkey;
-# untouched placeholder = no key installed)
-case "__LIVE_SSH_KEY__" in
-  __LIVE_SSH_KEY__) : ;;
-  *)
-    mkdir -p /sysroot/root/.ssh
-    echo '__LIVE_SSH_KEY__' > /sysroot/root/.ssh/authorized_keys
-    chmod 700 /sysroot/root/.ssh
-    chmod 600 /sysroot/root/.ssh/authorized_keys
-    echo "[live-init] live SSH key installed";;
-esac
+# optional live SSH key (builder substitutes __LIVE_SSH_KEY__ with a pubkey,
+# or with the empty string for release builds)
+LIVE_SSH_KEY="__LIVE_SSH_KEY__"
+if [ -n "$LIVE_SSH_KEY" ]; then
+  mkdir -p /sysroot/root/.ssh
+  echo "$LIVE_SSH_KEY" > /sysroot/root/.ssh/authorized_keys
+  chmod 700 /sysroot/root/.ssh
+  chmod 600 /sysroot/root/.ssh/authorized_keys
+  echo "[live-init] live SSH key installed"
+fi
 mount --move /proc /sysroot/proc 2>/dev/null
 mount --move /sys /sysroot/sys 2>/dev/null
 mount --move /dev /sysroot/dev 2>/dev/null
@@ -221,6 +224,8 @@ if [[ -n "$INJECT_KEY" ]]; then
   log "injecting live SSH key into initramfs (testing only — omit for release builds)"
   KEYDATA=$(cat "$INJECT_KEY")
   sed -i "s|__LIVE_SSH_KEY__|${KEYDATA}|g" "$I/init"
+else
+  sed -i "s|__LIVE_SSH_KEY__||g" "$I/init"
 fi
 (cd "$I" && find . -print0 | LC_ALL=C sort -z | cpio -0 -o -H newc --owner 0:0 2>/dev/null | gzip -9 > "$WORK/initramfs-live.img")
 ls -la "$WORK/initramfs-live.img"
