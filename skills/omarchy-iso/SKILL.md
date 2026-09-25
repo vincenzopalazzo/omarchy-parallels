@@ -101,7 +101,7 @@ output — it **destroys the El Torito catalog** ("set to be discarded").
 | Live boot mounts the build machine's disks | fstab from snapshot applied | builder already empties `/etc/fstab` in the overlay upper — if you customized, check `/init` |
 | Installed system panics on root mount | AHCI/enumeration race | the generated entry includes `rootwait` — keep it |
 | `bootctl install` fails in live env | ESP not mounted at the `--esp-path` | installer mounts ESP at `$MNT/boot` first — rerun |
-| Live desktop looks unthemed (no Quattro wallpaper, stock colors) | `/home` is excluded, so live init restores `/etc/skel`, and skel has no `theme.name`. Omarchy only paints a theme after `omarchy-theme-set` (installer seeds Tokyo Night, whose wallpaper is the Quattro car) | live `/init` must run `OMARCHY_THEME_HEADLESS=1 omarchy-theme-set "Tokyo Night"` as the autologin user after restoring skel. Do not ship a home with no `theme.name` |
+| Live desktop looks unthemed or missing the bar/GTK theme | `/home` is excluded, so live init restores `/etc/skel`. Skel has no `theme.name`, and the shell/GTK theme/app defaults are applied by `omarchy-provision-user`, not by copying files | live `/init` must run `omarchy-provision-user --first-install` as the autologin user with `OMARCHY_THEME_HEADLESS=1` and `OMARCHY_SETUP_CONTEXT=iso-chroot` before `switch_root`. Hyprland's autostart then runs `omarchy-provision-first-run` (user units, welcome) once the session bus exists |
 | ISO boots on VM but not bare-metal USB | El Torito only; no isohybrid/GPT-ESP appendage | burn with a tool that synthesizes GPT+ESP, or extend the builder with a `--hybrid` xorriso `-append_partition` step (future work) |
 
 ## Ethics & legal

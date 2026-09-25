@@ -225,16 +225,31 @@ if [ -n "$AUTOLOGIN_USER" ] && [ ! -d "/sysroot/home/$AUTOLOGIN_USER" ]; then
     cp -a /sysroot/etc/skel/. "/sysroot/home/$AUTOLOGIN_USER/" 2>/dev/null
     chown -R "$AUTOLOGIN_UID:$AUTOLOGIN_GID" "/sysroot/home/$AUTOLOGIN_USER"
     echo "[live-init] restored home for $AUTOLOGIN_USER"
-    # skel has no theme.name. Omarchy only applies colors when omarchy-theme-set
-    # has run (installer seeds "Tokyo Night"). A bare skel home starts Hyprland
-    # with no theme link, so the live desktop looks like a stock/broken theme.
-    # Apply the same seed headless, before switch_root, as that user.
-    if [ ! -s "/sysroot/home/$AUTOLOGIN_USER/.local/state/omarchy/current/theme.name" ]; then
+    # skel is not a finished desktop. Omarchy paints the theme, bar, GTK theme,
+    # and app defaults only after omarchy-provision-user + omarchy-theme-set.
+    # Both are what a normal install runs before the first Hyprland start.
+    # Headless is required: there is no session bus inside this initramfs.
+    # provision-user refuses to run as root, so this is the autologin user.
+    # The stock installer looks for an x86_64 Node tarball under iso-chroot and
+    # aborts the rest of user setup (GTK theme, browser default) when it is
+    # missing. This ARM image does not ship that tarball. Treat it as the
+    # provision-owner path does: warn and continue. Node can install later
+    # from the network. The sed is a copy in the overlay, not the squashfs.
+    if [ -f /sysroot/usr/share/omarchy/install/user/mise-work.sh ]; then
+      sed -i 's/OMARCHY_SETUP_CONTEXT:-} == "provision-owner"/OMARCHY_SETUP_CONTEXT:-} == "provision-owner" || ${OMARCHY_SETUP_CONTEXT:-} == "iso-chroot"/' \
+        /sysroot/usr/share/omarchy/install/user/mise-work.sh
+    fi
+    if ! chroot /sysroot /bin/su -s /bin/bash - "$AUTOLOGIN_USER" -c \
+        'export OMARCHY_PATH=/usr/share/omarchy OMARCHY_INSTALL=/usr/share/omarchy/install OMARCHY_SETUP_CONTEXT=iso-chroot OMARCHY_THEME_HEADLESS=1 PATH=/usr/share/omarchy/bin:$PATH; omarchy-provision-user --first-install'; then
+      echo "[live-init] provision-user failed; seeding theme only"
       chroot /sysroot /bin/su -s /bin/bash - "$AUTOLOGIN_USER" -c \
-        'OMARCHY_THEME_HEADLESS=1 omarchy-theme-set "Tokyo Night"' \
-        >/dev/null 2>&1 \
-        && echo "[live-init] seeded Tokyo Night for $AUTOLOGIN_USER" \
-        || echo "[live-init] theme seed failed (desktop may look unthemed)"
+        'OMARCHY_THEME_HEADLESS=1 OMARCHY_PATH=/usr/share/omarchy PATH=/usr/share/omarchy/bin:$PATH omarchy-theme-set "Tokyo Night"' \
+        || echo "[live-init] theme seed failed"
+    fi
+    if [ -s "/sysroot/home/$AUTOLOGIN_USER/.local/state/omarchy/current/theme.name" ]; then
+      echo "[live-init] desktop ready: $(cat /sysroot/home/$AUTOLOGIN_USER/.local/state/omarchy/current/theme.name)"
+    else
+      echo "[live-init] desktop seed incomplete (theme.name missing)"
     fi
   fi
 fi
