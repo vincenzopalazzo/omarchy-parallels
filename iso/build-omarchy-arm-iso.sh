@@ -53,7 +53,17 @@ ISO_NAME="omarchy-arm-${STAMP}-aarch64.iso"
 KVER=$(uname -r)
 MODDIR="/usr/lib/modules/$KVER"
 
+# --skip-squash must survive the work-dir wipe. Stash the previous snapshot
+# first; otherwise rm -rf deletes the file the flag was meant to reuse.
+STASH=""
+if [[ "$SKIP_SQUASH" == "1" && -f "$WORK/iso-root/omarchy.sfs" ]]; then
+  STASH=$(mktemp /var/tmp/omarchy-sfs-stash.XXXXXX)
+  mv "$WORK/iso-root/omarchy.sfs" "$STASH"
+fi
 rm -rf "$WORK"; mkdir -p "$WORK/iso-root" "$WORK/fat" "$WORK/initrd" "$WORK/esp-mnt"
+if [[ -n "$STASH" ]]; then
+  mv "$STASH" "$WORK/iso-root/omarchy.sfs"
+fi
 
 # ---------- 1. squashfs snapshot of the live system ----------
 if [[ "$SKIP_SQUASH" == "1" && -f "$WORK/iso-root/omarchy.sfs" ]]; then
