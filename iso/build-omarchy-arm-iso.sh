@@ -19,6 +19,7 @@ INJECT_KEY=""     # testing only: authorized_keys for live root (removed for rel
 SFS_COMP="xz"
 SFS_EXTRA="-Xbcj arm"
 SKIP_SQUASH=0
+LIVE_DEBUG=0      # off in release ISOs: no disk breadcrumbs, no kmsg TCP stream
 
 log()  { printf '\033[1;32m==>\033[0m \033[1m%s\033[0m\n' "$*"; }
 die()  { printf '\033[1;31mERROR:\033[0m %s\n' "$*" >&2; exit 1; }
@@ -31,8 +32,11 @@ while [[ $# -gt 0 ]]; do
     --work)    WORK="$2"; shift 2 ;;
     --comp)    SFS_COMP="$2"; shift 2 ;;
     --skip-squash) SKIP_SQUASH=1; shift ;;
+    --debug)   LIVE_DEBUG=1; shift ;;
     -h|--help)
-      echo "usage: $0 [--ssh-key PUBKEY] [--out-dir DIR] [--work DIR] [--comp xz|gzip] [--skip-squash]"; exit 0 ;;
+      echo "usage: $0 [--ssh-key PUBKEY] [--out-dir DIR] [--work DIR] [--comp xz|gzip] [--skip-squash] [--debug]"
+      echo "  --debug   live_debug=1: scratch-disk breadcrumbs + kmsg to 10.211.55.2:4499. Never for a release ISO."
+      exit 0 ;;
     *) die "unknown argument: $1" ;;
   esac
 done
@@ -204,8 +208,10 @@ mark() {
   echo "LIVE $1 up=$(cat /proc/uptime 2>/dev/null)" | dd of=/dev/sda bs=512 seek=$2 conv=notrunc 2>/dev/null || true
 }
 mark INIT_START 2048
-# debug stream: best-effort kmsg over TCP to the build host (10.211.55.2:4499)
-# NOTE: interface names are unpredictable (enp0s5, not eth0) — try them all
+# Debug stream only when the kernel cmdline asked for it (--debug builds).
+# A release boot must not claim 10.211.55.9 or send kmsg to the build host.
+# NOTE: interface names are unpredictable (enp0s5, not eth0) — try them all.
+if [ "$LIVE_DEBUG" = "1" ]; then
 (
   ip link set lo up 2>/dev/null
   for IF in $(ls /sys/class/net 2>/dev/null | grep -v '^lo$'); do
@@ -218,6 +224,7 @@ mark INIT_START 2048
     sleep 5
   done
 ) &
+fi
 mount -t overlay overlay -o lowerdir=/sfs,upperdir=/ovl/upper,workdir=/ovl/work /sysroot \
   || { echo "[live-init] FATAL: overlay mount failed"; exec sh; }
 # neutralize installer-time fstab (points at the build machine's disks)
@@ -309,11 +316,18 @@ timeout 5
 default live
 console-mode keep
 EOF
-cat > "$WORK/esp-mnt/loader/entries/live.conf" <<'EOF'
+# Release cmdline: no live_debug (that writes /dev/sda and streams kmsg),
+# no tryomarchy.ssh_access (that starts sshd), no mitigations=off.
+LIVE_OPTS="iso_dev=auto rw console=tty0 loglevel=4 systemd.show_status=false"
+if [[ "$LIVE_DEBUG" == "1" ]]; then
+  LIVE_OPTS="$LIVE_OPTS live_debug=1"
+  log "DEBUG ISO: live_debug=1 is on the default boot entry"
+fi
+cat > "$WORK/esp-mnt/loader/entries/live.conf" <<EOF
 title   Omarchy ARM (live ISO)
 linux   /Image
 initrd  /initramfs-live.img
-options iso_dev=auto live_debug=1 rw console=tty0 loglevel=4 tryomarchy.ssh_access=1 systemd.show_status=false mitigations=off nowatchdog
+options $LIVE_OPTS
 EOF
 umount "$WORK/esp-mnt"; losetup -d "$LOOP"
 

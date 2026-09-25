@@ -5,7 +5,7 @@
 # builder's output). First boot of the installed system runs Omarchy's own
 # first-boot wizard (user creation), so this script stops at a bootable disk.
 #
-# usage: sudo omarchy-arm-install /dev/sdX [--hostname NAME] [--yes]
+# usage: sudo omarchy-arm-install /dev/sdX [--hostname NAME] [--yes sda]
 # MIT licensed (part of omarchy-parallels, unofficial community tooling).
 set -euo pipefail
 
@@ -16,8 +16,13 @@ die()  { printf '\033[1;31mERROR:\033[0m %s\n' "$*" >&2; exit 1; }
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --hostname) HOSTNAME="$2"; shift 2 ;;
-    --yes) YES=1; shift ;;
-    -h|--help) echo "usage: $0 /dev/sdX [--hostname NAME] [--yes]"; exit 0 ;;
+    --yes)
+      YES=1
+      YES_NAME="${2:-}"
+      [[ -n "$YES_NAME" && "$YES_NAME" != --* && "$YES_NAME" != /dev/* ]] || die "--yes needs the device basename, e.g. --yes sda"
+      shift 2
+      ;;
+    -h|--help) echo "usage: $0 /dev/sdX [--hostname NAME] [--yes sda]"; exit 0 ;;
     /dev/*) TARGET="$1"; shift ;;
     *) die "unknown argument: $1" ;;
   esac
@@ -35,11 +40,20 @@ fi
 [[ "$TARGET" =~ ^/dev/(sd[a-z]|vd[a-z]|nvme[0-9]n[0-9]|mmcblk[0-9])$ ]] \
   || die "target must be a whole disk (got $TARGET)"
 
-if [[ "$YES" != "1" ]]; then
+# --yes does not skip the name check. It only skips the prompt.
+# `omarchy-arm-install /dev/sda --yes` is rejected; `--yes sda` is required,
+# and the name must be the basename of the target.
+WANT_NAME="$(basename "$TARGET")"
+if [[ "$YES" == "1" ]]; then
+  [[ "$YES_NAME" == "$WANT_NAME" ]] || die "--yes $YES_NAME does not match $WANT_NAME — aborted"
+else
   echo "About to ERASE $TARGET and install Omarchy ARM (hostname: $HOSTNAME)."
-  read -rp "Type the device name to confirm (e.g. $(basename "$TARGET")): " ans
-  [[ "$ans" == "$(basename "$TARGET")" ]] || die "aborted"
+  read -rp "Type the device name to confirm (e.g. $WANT_NAME): " ans
+  [[ "$ans" == "$WANT_NAME" ]] || die "aborted"
 fi
+# hostname is written to /etc/hostname. Reject anything that is not a label.
+[[ "$HOSTNAME" =~ ^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?$ ]] \
+  || die "hostname must be a single DNS label (got $HOSTNAME)"
 
 MNT=/mnt/omroot
 umount -R "$MNT" 2>/dev/null || true; mkdir -p "$MNT"
@@ -97,7 +111,7 @@ cat > "$MNT/boot/loader/entries/arch.conf" <<EOF
 title   Omarchy ARM
 linux   /Image
 initrd  /initramfs-linux.img
-options root=UUID=$ROOT_UUID rootfstype=ext4 rw rootwait console=tty0 loglevel=4 systemd.show_status=false rd.systemd.show_status=false mitigations=off nowatchdog
+options root=UUID=$ROOT_UUID rootfstype=ext4 rw rootwait console=tty0 loglevel=4 systemd.show_status=false rd.systemd.show_status=false
 EOF
 cat > "$MNT/etc/fstab" <<EOF
 UUID=$ROOT_UUID / ext4 rw,relatime 0 1

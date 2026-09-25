@@ -79,7 +79,7 @@ output — it **destroys the El Torito catalog** ("set to be discarded").
 
 ## Installer contract (`omarchy-arm-install`)
 
-- Args: target whole-disk device + `--hostname` + `--yes`; refuses mounted
+- Args: target whole-disk device + `--hostname`. `--yes` still requires the device basename (`--yes sda`); a bare `--yes` is rejected. Refuses the live boot device. Installed cmdline has no `mitigations=off` and no `tryomarchy.ssh_access`.
   devices and the live boot device.
 - Layout: 1 GiB ESP (`ef00`) + rest ext4 (`8300`); `bootctl install` for
   AArch64; loader entry reuses the proven `root=UUID=… rootwait` combo.
@@ -101,6 +101,7 @@ output — it **destroys the El Torito catalog** ("set to be discarded").
 | Live boot mounts the build machine's disks | fstab from snapshot applied | builder already empties `/etc/fstab` in the overlay upper — if you customized, check `/init` |
 | Installed system panics on root mount | AHCI/enumeration race | the generated entry includes `rootwait` — keep it |
 | `bootctl install` fails in live env | ESP not mounted at the `--esp-path` | installer mounts ESP at `$MNT/boot` first — rerun |
+| Release ISO starts sshd or writes `/dev/sda` | default boot entry had `tryomarchy.ssh_access=1` (starts sshd) and `live_debug=1` (writes breadcrumbs to `/dev/sda` and streams kmsg to 10.211.55.2) | those flags are off unless the ISO was built with `--debug`. Do not publish a `--debug` ISO |
 | Live desktop looks unthemed or missing the bar/GTK theme | `/home` is excluded, so live init restores `/etc/skel`. Skel has no `theme.name`, and the shell/GTK theme/app defaults are applied by `omarchy-provision-user`, not by copying files | live `/init` must run `omarchy-provision-user --first-install` as the autologin user with `OMARCHY_THEME_HEADLESS=1` and `OMARCHY_SETUP_CONTEXT=iso-chroot` before `switch_root`. Hyprland's autostart then runs `omarchy-provision-first-run` (user units, welcome) once the session bus exists |
 | ISO boots on VM but not bare-metal USB | El Torito only; no isohybrid/GPT-ESP appendage | burn with a tool that synthesizes GPT+ESP, or extend the builder with a `--hybrid` xorriso `-append_partition` step (future work) |
 
