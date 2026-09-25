@@ -18,6 +18,7 @@ WORK="/var/tmp/iso-build"   # persistent across reboots (/tmp is tmpfs)
 INJECT_KEY=""     # testing only: authorized_keys for live root (removed for release)
 SFS_COMP="xz"
 SFS_EXTRA="-Xbcj arm"
+SKIP_SQUASH=0
 
 log()  { printf '\033[1;32m==>\033[0m \033[1m%s\033[0m\n' "$*"; }
 die()  { printf '\033[1;31mERROR:\033[0m %s\n' "$*" >&2; exit 1; }
@@ -29,8 +30,9 @@ while [[ $# -gt 0 ]]; do
     --out-dir) OUT_DIR="$2"; shift 2 ;;
     --work)    WORK="$2"; shift 2 ;;
     --comp)    SFS_COMP="$2"; shift 2 ;;
+    --skip-squash) SKIP_SQUASH=1; shift ;;
     -h|--help)
-      echo "usage: $0 [--ssh-key PUBKEY] [--out-dir DIR] [--work DIR] [--comp xz|gzip]"; exit 0 ;;
+      echo "usage: $0 [--ssh-key PUBKEY] [--out-dir DIR] [--work DIR] [--comp xz|gzip] [--skip-squash]"; exit 0 ;;
     *) die "unknown argument: $1" ;;
   esac
 done
@@ -42,7 +44,8 @@ for t in mksquashfs unsquashfs xorriso mkfs.fat busybox modinfo cpio bootctl; do
   command -v "$t" >/dev/null || die "missing tool: $t (pacman -S busybox libisoburn squashfs-tools dosfstools gptfdisk)"
 done
 FREE_GB=$(df -BG / --output=avail | tail -1 | tr -dc 0-9)
-[[ "${FREE_GB:-0}" -ge 8 ]] || die "need ~8 GB free on / (have ${FREE_GB} GB)"
+NEED_GB=8; [[ "$SKIP_SQUASH" == "1" ]] && NEED_GB=4
+[[ "${FREE_GB:-0}" -ge "$NEED_GB" ]] || die "need ~${NEED_GB} GB free on / (have ${FREE_GB} GB)"
 [[ -n "$INJECT_KEY" && ! -f "$INJECT_KEY" ]] && die "ssh key not found: $INJECT_KEY"
 
 STAMP=$(date +%Y%m%d)
@@ -53,7 +56,11 @@ MODDIR="/usr/lib/modules/$KVER"
 rm -rf "$WORK"; mkdir -p "$WORK/iso-root" "$WORK/fat" "$WORK/initrd" "$WORK/esp-mnt"
 
 # ---------- 1. squashfs snapshot of the live system ----------
-log "snapshotting / -> squashfs (direct, excludes applied)"
+if [[ "$SKIP_SQUASH" == "1" && -f "$WORK/iso-root/omarchy.sfs" ]]; then
+  log "reusing existing squashfs (--skip-squash)"
+else
+  rm -f "$WORK/iso-root/omarchy.sfs"
+  log "snapshotting / -> squashfs (direct, excludes applied)"
 # NOTE: paths must be absolute (source is /); wildcards allowed
 cat > "$WORK/excludes.txt" <<EOF
 /proc
@@ -107,6 +114,7 @@ if unsquashfs -l "$WORK/iso-root/omarchy.sfs" 2>/dev/null | grep -qE "squashfs-r
 fi
 log "squashfs verified clean"
 ls -la "$WORK/iso-root/omarchy.sfs"
+fi # end --skip-squash
 
 # ---------- 2. live initramfs (/init finds ISO -> squashfs -> overlay) ----------
 log "building live initramfs"
@@ -272,6 +280,7 @@ if [[ -f "$(dirname "$0")/omarchy-arm-install.sh" ]]; then
 fi
 
 log "running xorriso (El Torito EFI boot)"
+rm -f "$OUT_DIR/$ISO_NAME" "$OUT_DIR/$ISO_NAME.sha256"   # replacing output; free the space first
 # NOTE: -boot-load-size is load-bearing. xorriso writes 0 as the El Torito
 # sector count for -no-emul-boot unless told otherwise, and strict EFI
 # implementations (Parallels: IsBootable=0) reject a 0 count. EDK2-derived
