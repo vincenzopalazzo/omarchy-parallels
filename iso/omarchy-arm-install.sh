@@ -57,7 +57,29 @@ mkfs.ext4 -q -L omarchy "$P2"
 
 log "extracting rootfs (unsquashfs, a few minutes)"
 mount "$P2" "$MNT"
-unsquashfs -f -d "$MNT" /omarchy.sfs 2>&1 | tail -1
+# locate the squashfs: the live /init mounts it from the CD, but the /iso
+# mountpoint does not survive switch_root — so re-discover it (loop backing
+# file first, then re-mount the live CD)
+find_sfs() {
+  [ -f /omarchy.sfs ] && { echo /omarchy.sfs; return 0; }
+  for l in /dev/loop*; do
+    bf=$(losetup -n -O BACK-FILE "$l" 2>/dev/null)
+    case "$bf" in *.sfs) [ -f "$bf" ] && { echo "$bf"; return 0; };; esac
+  done
+  for d in /dev/sr[0-9]*; do
+    [ -b "$d" ] || continue
+    mkdir -p /mnt/livecd
+    if mount -t iso9660 -o ro "$d" /mnt/livecd 2>/dev/null \
+       && [ -f /mnt/livecd/omarchy.sfs ]; then
+      echo /mnt/livecd/omarchy.sfs; return 0
+    fi
+    umount /mnt/livecd 2>/dev/null
+  done
+  return 1
+}
+SFS=$(find_sfs) || die "omarchy.sfs not found (is the live ISO attached?)"
+log "source: $SFS"
+unsquashfs -f -d "$MNT" "$SFS" 2>&1 | tail -1
 
 log "bootloader (systemd-boot for AArch64)"
 mkdir -p "$MNT/boot"

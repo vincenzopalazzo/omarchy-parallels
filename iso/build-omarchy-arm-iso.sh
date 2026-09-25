@@ -212,6 +212,21 @@ mount -t overlay overlay -o lowerdir=/sfs,upperdir=/ovl/upper,workdir=/ovl/work 
   || { echo "[live-init] FATAL: overlay mount failed"; exec sh; }
 # neutralize installer-time fstab (points at the build machine's disks)
 : > /sysroot/etc/fstab
+# live desktop fix: SDDM autologins a user whose /home was excluded from the
+# snapshot, so the session dies instantly and SDDM loops on a broken screen.
+# Recreate that user's home from /etc/skel in the writable upper layer.
+AUTOLOGIN_USER=$(grep -h -A2 '\[Autologin\]' /sysroot/etc/sddm.conf.d/*.conf \
+  /sysroot/etc/sddm.conf 2>/dev/null | grep -i '^User=' | head -1 | cut -d= -f2 | tr -d ' ')
+if [ -n "$AUTOLOGIN_USER" ] && [ ! -d "/sysroot/home/$AUTOLOGIN_USER" ]; then
+  AUTOLOGIN_UID=$(grep "^$AUTOLOGIN_USER:" /sysroot/etc/passwd 2>/dev/null | cut -d: -f3)
+  AUTOLOGIN_GID=$(grep "^$AUTOLOGIN_USER:" /sysroot/etc/passwd 2>/dev/null | cut -d: -f4)
+  if [ -n "$AUTOLOGIN_UID" ]; then
+    mkdir -p "/sysroot/home/$AUTOLOGIN_USER"
+    cp -a /sysroot/etc/skel/. "/sysroot/home/$AUTOLOGIN_USER/" 2>/dev/null
+    chown -R "$AUTOLOGIN_UID:$AUTOLOGIN_GID" "/sysroot/home/$AUTOLOGIN_USER"
+    echo "[live-init] restored home for $AUTOLOGIN_USER"
+  fi
+fi
 # optional live SSH key (builder substitutes __LIVE_SSH_KEY__ with a pubkey,
 # or with the empty string for release builds)
 LIVE_SSH_KEY="__LIVE_SSH_KEY__"
