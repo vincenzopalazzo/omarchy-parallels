@@ -225,6 +225,17 @@ if [ -n "$AUTOLOGIN_USER" ] && [ ! -d "/sysroot/home/$AUTOLOGIN_USER" ]; then
     cp -a /sysroot/etc/skel/. "/sysroot/home/$AUTOLOGIN_USER/" 2>/dev/null
     chown -R "$AUTOLOGIN_UID:$AUTOLOGIN_GID" "/sysroot/home/$AUTOLOGIN_USER"
     echo "[live-init] restored home for $AUTOLOGIN_USER"
+    # skel has no theme.name. Omarchy only applies colors when omarchy-theme-set
+    # has run (installer seeds "Tokyo Night"). A bare skel home starts Hyprland
+    # with no theme link, so the live desktop looks like a stock/broken theme.
+    # Apply the same seed headless, before switch_root, as that user.
+    if [ ! -s "/sysroot/home/$AUTOLOGIN_USER/.local/state/omarchy/current/theme.name" ]; then
+      chroot /sysroot /bin/su -s /bin/bash - "$AUTOLOGIN_USER" -c \
+        'OMARCHY_THEME_HEADLESS=1 omarchy-theme-set "Tokyo Night"' \
+        >/dev/null 2>&1 \
+        && echo "[live-init] seeded Tokyo Night for $AUTOLOGIN_USER" \
+        || echo "[live-init] theme seed failed (desktop may look unthemed)"
+    fi
   fi
 fi
 # optional live SSH key (builder substitutes __LIVE_SSH_KEY__ with a pubkey,
