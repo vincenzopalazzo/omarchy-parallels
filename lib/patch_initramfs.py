@@ -3,7 +3,7 @@
 mkinitcpio initramfs.
 
 The patched init gains two omarchy-parallels blocks:
-  1. early: bring up eth0 and stream /proc/kmsg over TCP to the host
+  1. early: bring up all non-lo interfaces and stream /proc/kmsg over TCP
             (kernel log visible from the Mac even without a working UART)
   2. late:  write an SSH public key into /sysroot/root/.ssh/authorized_keys
             just before switch_root (journal-safe key injection)
@@ -18,11 +18,13 @@ import sys
 
 KMSG_BLOCK = """
 # omarchy-parallels debug: stream kmsg to host over TCP
+# (interface names are unpredictable: enp0s5, not eth0 — try them all)
 (
   ip link set lo up 2>/dev/null
-  ip link set eth0 up 2>/dev/null
-  ip addr add {ip}/24 dev eth0 2>/dev/null
-  ip route add default via 10.211.55.2 2>/dev/null
+  for IF in $(ls /sys/class/net 2>/dev/null | grep -v '^lo$'); do
+    ip link set "$IF" up 2>/dev/null
+    ip addr add {ip}/24 dev "$IF" 2>/dev/null
+  done
   sleep 1
   echo '=== omarchy-parallels kmsg stream start ==='
   nc {host} {port} < /proc/kmsg
