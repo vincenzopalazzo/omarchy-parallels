@@ -194,9 +194,11 @@ mark INIT_START 2048
     ip link set "$IF" up 2>/dev/null
     ip addr add 10.211.55.9/24 dev "$IF" 2>/dev/null
   done
-  sleep 1
   echo '=== omarchy-arm-iso kmsg ==='
-  cat /proc/kmsg 2>/dev/null | nc 10.211.55.2 4499 2>/dev/null
+  while true; do
+    cat /proc/kmsg 2>/dev/null | nc 10.211.55.2 4499 2>/dev/null
+    sleep 5
+  done
 ) &
 mount -t overlay overlay -o lowerdir=/sfs,upperdir=/ovl/upper,workdir=/ovl/work /sysroot \
   || { echo "[live-init] FATAL: overlay mount failed"; exec sh; }
